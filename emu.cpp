@@ -92,7 +92,7 @@ void execute(int* pc, byte nib1, byte nib2){
     
     case '1': //1nnn - JMP addr - Jump to location at nnn
         {     //Using brackets here to bypass error. See https://stackoverflow.com/questions/5136295/switch-transfer-of-control-bypasses-initialization-of-when-calling-a-function
-            
+            *pc = addr(nib1, nib2);
         }
         break;
     
@@ -105,7 +105,7 @@ void execute(int* pc, byte nib1, byte nib2){
 
     case '3'://3xkk - Skip next instruction if Vx==kk
         {
-            if (registers[decode(std::string("000")+nib1[1],4)] == nib2)
+            if (registers[decode(std::string{nib1[1]}, 4)] == nib2)
             {
                 *pc+=2;
             }
@@ -114,7 +114,7 @@ void execute(int* pc, byte nib1, byte nib2){
     
     case '4'://4xkk - Skip next instruction if Vx!=kk
         {
-            if (registers[decode(std::string("000")+nib1[0], 4)] != nib2)
+            if (registers[decode(std::string{nib1[0]}, 4)] != nib2)
             {
                 *pc+=2;
             }
@@ -122,8 +122,14 @@ void execute(int* pc, byte nib1, byte nib2){
         }
         break;
 
-    case '5':
-        
+    case '5'://5xy0 - Skip next instruction if Vx==Vy
+        if (nib2[1]=='0')
+        {
+            if (decode(std::string{nib1[1]}, 1) == decode(std::string{nib2[0]}, 1))
+            {
+                *pc+=2;
+            }
+        }
         break;
     default:
         break;
