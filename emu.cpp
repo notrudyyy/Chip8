@@ -3,6 +3,7 @@
 #include<fstream>
 #include<iomanip>
 #include<string.h>
+#include<math.h>
 
 //General Outline
 //Read from hex file - parse, store into RAM (do i need to use malloc here? or should i just write to drive)
@@ -30,6 +31,16 @@ void sanitize(uchar input, bytes ram, int index){
     ram[index]="00";
     ram[1] = HEX[inp%16];
     ram[0] = HEX[inp/16];
+}
+
+//Function to convert n length hex string to integer.
+int decode(std::string hex, int len){
+    int decoded = 0;
+    for (int i = 0; i < len;i++)
+    {
+        decoded+=pow(16, len-i-1)*(HEX.find(hex[i]));
+    }
+    return decoded;
 }
 
 //Function to load RAM into memory
@@ -68,31 +79,30 @@ bytes loader(std::string rom)
     return ram;
 }
 
-void execute(byte nib1, byte nib2){
-    // if (nib1[0]=='0')
-    // {
-    //     if (nib1[1]=='0')
-    //     {
-    //         if (nib2[1]=='0') //00E0 - CLS - Clear Display
-    //         {
-                
-    //         }
-    //         else if (nib2[1]=='e') // 00EE - RET - Return from subroutine
-    //         {
-    //             /* code */
-    //         }
-    //     }
-    // }
+void execute(int* pc, byte nib1, byte nib2){
     switch (nib1[0])
     {
     case '0':
         switch (nib1[1])
         {
         case '0':
-            switch (nib2[1])
+            switch (nib2[0])
             {
-            case '0':
-                //
+            case 'e':
+                switch (nib2[1])
+                {
+                case '0': //00E0 - CLS -Clear Display
+                    /* code to clear display*/
+                    break;
+                
+                case 'E': //OOEE - RET -return from subroutine
+                    /*code to  return from subroutine*/
+                    break;
+                default:
+                    std::cout<< "Unrecognized opcode \"" <<nib1 <<nib2<<"\"! Now exiting...";
+                    exit;
+                    break;
+                }
                 break;
             
             default:
@@ -100,17 +110,26 @@ void execute(byte nib1, byte nib2){
             }
             break;
         
-        default:
+        default: //0nnn - We ignore thisb keeping default blank.
             break;
         }
-        break;    
+        break;  
     
+    case '1': //1nnn - JMP addr - Jump to location at nnn
+        {     //Using brackets here to bypass error. See https://stackoverflow.com/questions/5136295/switch-transfer-of-control-bypasses-initialization-of-when-calling-a-function
+        
+        std::string hex = "000";
+        hex[0]=nib1[1];
+        hex[1]=nib2[0];
+        hex[2]=nib2[1];
+        *pc=decode(hex, 3);
+        
+        }
+        break;
     
-    
-    
-    
-    
-    
+    case '2':
+        break;
+
     default:
         break;
     }
@@ -130,6 +149,6 @@ int main()
     {
         byte nib1 = rom[pc++];
         byte nib2 = rom[pc++];
-        execute(nib1, nib2);
+        execute(&pc, nib1, nib2);
     }
 }
