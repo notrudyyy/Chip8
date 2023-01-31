@@ -183,6 +183,90 @@ void execute(int* pc, byte nib1, byte nib2){
             }
             break;
 
+        case '2'://8xy2 - Vx = Vx AND Vy
+            {
+                encode(decode_reg(nib2[0]) & decode_reg(nib1[1]),  &registers[decode_char(nib1[1])]);
+            }
+            break;
+
+        case '3'://8xy3 - Vx = Vx XOR Vy
+            {
+                encode(decode_reg(nib2[0]) ^ decode_reg(nib1[1]),  &registers[decode_char(nib1[1])]);
+            }
+            break;
+        
+        case '4'://8xy4 - Vx = (Vx + Vy) mod 256 and Vf = 1 if Vx+Vy<=255, else 0
+            {
+                if (decode_reg(nib2[0]) + decode_reg(nib1[1]) > 255)
+                {
+                    //Could have just used 15 as the index, but this makes it more clear what the index is.
+                    registers[decode_char('f')] = "00";
+                }
+                else
+                {
+                    registers[decode_char('f')]="01";
+                }
+                encode((decode_reg(nib2[0]) + decode_reg(nib1[1]))%256,  &registers[decode_char(nib1[1])]);
+            }
+            break;
+
+        case '5'://8xy5 - Vx = mod(Vx-Vy) and Vf = 1 if Vx>Vy, else 0
+            {
+                if (decode_reg(nib2[0]) - decode_reg(nib1[1]) < 0)
+                {
+                    registers[decode_char('f')]="01";
+                }
+                else
+                {
+                    registers[decode_char('f')]="00";
+                }
+                encode(abs(decode_reg(nib2[0]) - decode_reg(nib1[1])),  &registers[decode_char(nib1[1])]);
+            }
+            break;
+
+        case '6'://8xy6 - Vx = Vx/2 and Vf=1 if LSB of Vx=1, else 0
+            {
+                if (decode_reg(nib1[1]) % 2 == 1)
+                {
+                    registers[decode_char('f')] = "01";
+                }
+                else
+                {
+                    registers[decode_char('f')] = "00";
+                }
+                
+                encode(decode_reg(nib1[1])/2,  &registers[decode_char(nib1[1])]);
+            }
+            break;
+
+        case '7'://8xy7 - Vx = mod(Vx-Vy) and Vf = 1 if Vy>Vx, else 0
+            {
+                if (decode_reg(nib2[0]) > decode_reg(nib1[1]))
+                {
+                    registers[decode_char('f')] = "01";
+                }
+                else
+                {
+                    registers[decode_char('f')] = "00";
+                }
+                encode(abs(decode_reg(nib1[1]) - decode_reg(nib2[0])), &registers[decode_char(nib1[1])]);
+            }
+            break;
+        
+        case 'e'://8xyE - Vx = Vx*2 and Vf = 1 if MSB of Vx = 1, else 0
+            {
+                if (decode_reg(nib1[1]) >= 128)
+                {
+                    registers[decode_char('f')] = "01";
+                }
+                else
+                {
+                    registers[decode_char('f')] = "00";
+                }
+                encode((decode_reg(nib1[1])*2)%256, &registers[decode_char(nib1[1])]);
+            }
+            break;
+
         default:
             break;
         }
