@@ -36,6 +36,13 @@ void sanitize(uchar input, bytes ram, int index){
     ram[index][1] = HEX[inp/16];
 }
 
+//Function to convert integer to 2 length hex string.
+void encode(int num, std::string* hex){
+    *hex="00";
+    hex[0] = HEX[num%16];
+    hex[1] = HEX[num/16];
+}
+
 //Function to convert n length hex string to integer.
 int decode(std::string hex, int len){
     int decoded = 0;
@@ -123,14 +130,56 @@ void execute(int* pc, byte nib1, byte nib2){
         break;
 
     case '5'://5xy0 - Skip next instruction if Vx==Vy
-        if (nib2[1]=='0')
         {
-            if (decode(std::string{nib1[1]}, 1) == decode(std::string{nib2[0]}, 1))
+            if (nib2[1]=='0')
             {
-                *pc+=2;
+                if (decode(std::string{nib1[1]}, 1) == decode(std::string{nib2[0]}, 1))
+                {
+                    *pc+=2;
+                }
             }
         }
         break;
+    
+    case '6'://6xkk - Loads Vx with kk
+        {
+            registers[decode(std::string{nib1[1]}, 1)] = nib2;
+        }
+        break;
+
+    case '7'://7xkk - Vx += kk
+        {
+            //Yes this line is frightening. No its not hard to understand.
+            //First argument adds the current value of Vx (after decoding) with the decimal value of kk
+            //Second argument is just the memory address of Vx
+            //encode converts the given int to a length 2 hex string and puts it into Vx 
+            encode( (decode(registers[decode(std::string{nib1[1]}, 1)], 2) + decode(nib2, 2))  ,  &registers[decode(std::string{nib1[1]}, 1)]);
+        }
+        break;
+    
+    case '8':
+        switch (nib2[1])
+        {
+        case '0'://8xy0 - Set Vx = Vy
+            {
+                registers[decode(std::string{nib1[1]}, 1)] = registers[decode(std::string{nib2[0]}, 1)];
+            }
+            break;
+        
+        case '1'://8xy1 - Vx = Vy OR Vx (bitwise OR)
+            {
+                //Another insanely long line. I think next I will make a new branch of this branch.
+                //Then I will add the functions - decode_reg which just decodes a register but in 
+                //less characters lol. Then I will add the function decode_char which just decodes a char.
+                encode(decode(registers[decode(std::string{nib2[0]}, 1)], 2) | decode(registers[decode(std::string{nib1[1]}, 1)], 2),  &registers[decode(std::string{nib1[1]}, 1)]);
+            }
+            break;
+
+        default:
+            break;
+        }
+        break;
+        
     default:
         break;
     }
