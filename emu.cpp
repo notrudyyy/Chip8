@@ -53,6 +53,16 @@ int decode(std::string hex, int len){
     return decoded;
 }
 
+//Function to convert a single length hex character to an integer.
+int decode_char(char hex){
+    return HEX.find(hex);
+}
+
+//Function to decode a given register.
+int decode_reg(char index){
+    return decode(registers[decode_char(index)], 2);
+}
+
 //Function to convert nnn to integer address
 int addr(byte nib1, byte nib2){
     std::string address=nib1+nib2;
@@ -88,6 +98,8 @@ void execute(int* pc, byte nib1, byte nib2){
                 break;
             
             default:
+                std::cout<< "Unrecognized opcode \"" <<nib1 <<nib2<<"\"! Now exiting...\n";
+                exit;
                 break;
             }
             break;
@@ -112,7 +124,7 @@ void execute(int* pc, byte nib1, byte nib2){
 
     case '3'://3xkk - Skip next instruction if Vx==kk
         {
-            if (registers[decode(std::string{nib1[1]}, 4)] == nib2)
+            if (registers[decode_char(nib1[1])] == nib2)
             {
                 *pc+=2;
             }
@@ -121,7 +133,7 @@ void execute(int* pc, byte nib1, byte nib2){
     
     case '4'://4xkk - Skip next instruction if Vx!=kk
         {
-            if (registers[decode(std::string{nib1[0]}, 4)] != nib2)
+            if (registers[decode_char(nib1[0])] != nib2)
             {
                 *pc+=2;
             }
@@ -133,7 +145,10 @@ void execute(int* pc, byte nib1, byte nib2){
         {
             if (nib2[1]=='0')
             {
-                if (decode(std::string{nib1[1]}, 1) == decode(std::string{nib2[0]}, 1))
+                //NOTE - Can increase performance (basically by a nanosec lol) by removing call to
+                //       decode_reg and instead comparing the 2 strings stored in the registers
+                //       (using decode_char to get index)
+                if (decode_reg(nib1[1]) == decode_reg(nib2[0]))
                 {
                     *pc+=2;
                 }
@@ -143,17 +158,13 @@ void execute(int* pc, byte nib1, byte nib2){
     
     case '6'://6xkk - Loads Vx with kk
         {
-            registers[decode(std::string{nib1[1]}, 1)] = nib2;
+            registers[decode_char(nib1[1])] = nib2;
         }
         break;
 
     case '7'://7xkk - Vx += kk
         {
-            //Yes this line is frightening. No its not hard to understand.
-            //First argument adds the current value of Vx (after decoding) with the decimal value of kk
-            //Second argument is just the memory address of Vx
-            //encode converts the given int to a length 2 hex string and puts it into Vx 
-            encode( (decode(registers[decode(std::string{nib1[1]}, 1)], 2) + decode(nib2, 2))  ,  &registers[decode(std::string{nib1[1]}, 1)]);
+            encode((decode_reg(nib1[1]) + decode(nib2, 2)), &registers[decode_char(nib1[1])]);
         }
         break;
     
@@ -162,16 +173,13 @@ void execute(int* pc, byte nib1, byte nib2){
         {
         case '0'://8xy0 - Set Vx = Vy
             {
-                registers[decode(std::string{nib1[1]}, 1)] = registers[decode(std::string{nib2[0]}, 1)];
+                registers[decode_char(nib1[1])] = registers[decode_char(nib2[0])];
             }
             break;
         
         case '1'://8xy1 - Vx = Vy OR Vx (bitwise OR)
             {
-                //Another insanely long line. I think next I will make a new branch of this branch.
-                //Then I will add the functions - decode_reg which just decodes a register but in 
-                //less characters lol. Then I will add the function decode_char which just decodes a char.
-                encode(decode(registers[decode(std::string{nib2[0]}, 1)], 2) | decode(registers[decode(std::string{nib1[1]}, 1)], 2),  &registers[decode(std::string{nib1[1]}, 1)]);
+                encode(decode_reg(nib2[0]) | decode_reg(nib1[1]),  &registers[decode_char(nib1[1])]);
             }
             break;
 
