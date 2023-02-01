@@ -70,7 +70,55 @@ int addr(byte nib1, byte nib2){
     return decode(address, 4);
 }
 
+//Function to check if program is trying to modify flag registers, outputs warning
+void flag_warn(byte nib1, byte nib2, char k){
+    if (k=='f')
+    {
+        std::cout << "WARNING - Program trying to access flag register using opcode - \"" << nib1+nib2 << "\"\n";
+    }
+}
+
+//Function to output error meessage if unknown opcode was read
+void unknown_op(byte nib1, byte nib2){
+    std::cout << "ERROR - UNRECOGNIZED OPCODE \"" << nib1 << nib2 << "\"! Now exiting...\n";
+    exit;
+}
+
+void print_stack(){
+    if(stack.empty())
+    {
+        std::cout << "\n\n";
+        return;
+    }
+    char x= stack.top();
+    stack.pop();
+    print_stack();
+    stack.push(x);
+    std::cout << x << " ";
+}
+
+
+//Function to output each opcode read OR that + stack and registers and pc based on user input
+void debug_print(byte nib1, byte nib2, int pc, int verbosity){
+    if (verbosity==0 || verbosity==1)
+    {
+        std::cout << "Current opcode - \"" << nib1+nib2 << "\"";
+        if (verbosity==1)
+        {
+            std::cout << "REGISTERS\n\n";
+            std::cout << "Program Counter - \"" << pc << "\"\n";
+            for (int i = 0; i < 16; i++)
+            {
+                std::cout << "V" << HEX[i] << " - \"" << registers[i] << "\"\n";
+            }
+            std::cout << "\nSTACK\n\n";
+            print_stack();
+        }
+    }
+}
+
 void execute(int* pc, byte nib1, byte nib2){
+    debug_print(nib1, nib2, *pc-2, 1);
     switch (nib1[0])
     {
     case '0':
@@ -86,7 +134,7 @@ void execute(int* pc, byte nib1, byte nib2){
                     /* code to clear display*/
                     break;
                 
-                case 'E': //OOEE - RET -return from subroutine
+                case 'E': //00EE - RET -return from subroutine
                     *pc=stack.top();
                     stack.pop();
                     break;
@@ -98,8 +146,7 @@ void execute(int* pc, byte nib1, byte nib2){
                 break;
             
             default:
-                std::cout<< "Unrecognized opcode \"" <<nib1 <<nib2<<"\"! Now exiting...\n";
-                exit;
+                unknown_op(nib1, nib2);
                 break;
             }
             break;
@@ -158,12 +205,14 @@ void execute(int* pc, byte nib1, byte nib2){
     
     case '6'://6xkk - Loads Vx with kk
         {
+            flag_warn(nib1, nib2, nib1[1]);
             registers[decode_char(nib1[1])] = nib2;
         }
         break;
 
     case '7'://7xkk - Vx += kk
         {
+            flag_warn(nib1, nib2, nib1[1]);
             encode((decode_reg(nib1[1]) + decode(nib2, 2)), &registers[decode_char(nib1[1])]);
         }
         break;
@@ -173,30 +222,35 @@ void execute(int* pc, byte nib1, byte nib2){
         {
         case '0'://8xy0 - Set Vx = Vy
             {
+                flag_warn(nib1, nib2, nib1[1]);
                 registers[decode_char(nib1[1])] = registers[decode_char(nib2[0])];
             }
             break;
         
         case '1'://8xy1 - Vx = Vy OR Vx (bitwise OR)
             {
+                flag_warn(nib1, nib2, nib1[1]);
                 encode(decode_reg(nib2[0]) | decode_reg(nib1[1]),  &registers[decode_char(nib1[1])]);
             }
             break;
 
         case '2'://8xy2 - Vx = Vx AND Vy
             {
+                flag_warn(nib1, nib2, nib1[1]);
                 encode(decode_reg(nib2[0]) & decode_reg(nib1[1]),  &registers[decode_char(nib1[1])]);
             }
             break;
 
         case '3'://8xy3 - Vx = Vx XOR Vy
             {
+                flag_warn(nib1, nib2, nib1[1]);
                 encode(decode_reg(nib2[0]) ^ decode_reg(nib1[1]),  &registers[decode_char(nib1[1])]);
             }
             break;
         
         case '4'://8xy4 - Vx = (Vx + Vy) mod 256 and Vf = 1 if Vx+Vy<=255, else 0
             {
+                flag_warn(nib1, nib2, nib1[1]);
                 if (decode_reg(nib2[0]) + decode_reg(nib1[1]) > 255)
                 {
                     //Could have just used 15 as the index, but this makes it more clear what the index is.
@@ -212,6 +266,7 @@ void execute(int* pc, byte nib1, byte nib2){
 
         case '5'://8xy5 - Vx = mod(Vx-Vy) and Vf = 1 if Vx>Vy, else 0
             {
+                flag_warn(nib1, nib2, nib1[1]);
                 if (decode_reg(nib2[0]) - decode_reg(nib1[1]) < 0)
                 {
                     registers[decode_char('f')]="01";
@@ -226,6 +281,7 @@ void execute(int* pc, byte nib1, byte nib2){
 
         case '6'://8xy6 - Vx = Vx/2 and Vf=1 if LSB of Vx=1, else 0
             {
+                flag_warn(nib1, nib2, nib1[1]);
                 if (decode_reg(nib1[1]) % 2 == 1)
                 {
                     registers[decode_char('f')] = "01";
@@ -241,6 +297,7 @@ void execute(int* pc, byte nib1, byte nib2){
 
         case '7'://8xy7 - Vx = mod(Vx-Vy) and Vf = 1 if Vy>Vx, else 0
             {
+                flag_warn(nib1, nib2, nib1[1]);
                 if (decode_reg(nib2[0]) > decode_reg(nib1[1]))
                 {
                     registers[decode_char('f')] = "01";
@@ -255,6 +312,7 @@ void execute(int* pc, byte nib1, byte nib2){
         
         case 'e'://8xyE - Vx = Vx*2 and Vf = 1 if MSB of Vx = 1, else 0
             {
+                flag_warn(nib1, nib2, nib1[1]);
                 if (decode_reg(nib1[1]) >= 128)
                 {
                     registers[decode_char('f')] = "01";
@@ -268,11 +326,13 @@ void execute(int* pc, byte nib1, byte nib2){
             break;
 
         default:
+            unknown_op(nib1, nib2);
             break;
         }
         break;
         
     default:
+        unknown_op(nib1, nib2);
         break;
     }
 }
