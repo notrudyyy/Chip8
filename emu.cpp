@@ -32,15 +32,15 @@ byte registers[15];
 void sanitize(uchar input, bytes ram, int index){
     int inp = (int) input;
     ram[index]="00";
-    ram[index][0] = HEX[inp%16];
-    ram[index][1] = HEX[inp/16];
+    ram[index][0] = HEX[inp/16];
+    ram[index][1] = HEX[inp%16];
 }
 
 //Function to convert integer to 2 length hex string.
 void encode(int num, std::string* hex){
     *hex="00";
-    hex[0] = HEX[num%16];
-    hex[1] = HEX[num/16];
+    hex[0] = HEX[num/16];
+    hex[1] = HEX[num%16];
 }
 
 //Function to convert n length hex string to integer.
@@ -78,23 +78,22 @@ void flag_warn(byte nib1, byte nib2, char k){
     }
 }
 
-//Function to output error meessage if unknown opcode was read
+//Function to output error message if unknown opcode was read
 void unknown_op(byte nib1, byte nib2){
     std::cout << "ERROR - UNRECOGNIZED OPCODE \"" << nib1 << nib2 << "\"! Now exiting...\n";
-    exit;
+    exit(EXIT_FAILURE);
 }
 
 void print_stack(){
     if(stack.empty())
     {
-        std::cout << "\n\n";
         return;
     }
-    char x= stack.top();
+    int x= stack.top();
     stack.pop();
     print_stack();
     stack.push(x);
-    std::cout << x << " ";
+    std::cout << x << '\n';
 }
 
 
@@ -102,7 +101,7 @@ void print_stack(){
 void debug_print(byte nib1, byte nib2, int pc, int verbosity){
     if (verbosity==0 || verbosity==1)
     {
-        std::cout << "Current opcode - \"" << nib1+nib2 << "\"";
+        std::cout << "Current opcode - \"" << nib1+nib2 << "\"\n";
         if (verbosity==1)
         {
             std::cout << "REGISTERS\n\n";
@@ -113,6 +112,7 @@ void debug_print(byte nib1, byte nib2, int pc, int verbosity){
             }
             std::cout << "\nSTACK\n\n";
             print_stack();
+            std::cout << "\n";
         }
     }
 }
@@ -139,8 +139,7 @@ void execute(int* pc, byte nib1, byte nib2){
                     stack.pop();
                     break;
                 default:
-                    std::cout<< "Unrecognized opcode \"" <<nib1 <<nib2<<"\"! Now exiting...\n";
-                    exit;
+                    unknown_op(nib1, nib2);
                     break;
                 }
                 break;
@@ -353,7 +352,7 @@ int main()
     {
         sanitize(input, ram, i);
         //Debug Line.
-        //std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)ram[i] << ' '<< std::dec<< count<< '\n';
+        //std::cout << std::setw(2) << std::setfill('0') << ram[i] << ' '<< count<< '\n';
         count++;
     }
 
