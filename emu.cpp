@@ -36,6 +36,13 @@ void sanitize(uchar input, bytes ram, int index){
     ram[index][1] = HEX[inp/16];
 }
 
+//Function to convert integer to 2 length hex string.
+void encode(int num, std::string* hex){
+    *hex="00";
+    hex[0] = HEX[num%16];
+    hex[1] = HEX[num/16];
+}
+
 //Function to convert n length hex string to integer.
 int decode(std::string hex, int len){
     int decoded = 0;
@@ -44,6 +51,16 @@ int decode(std::string hex, int len){
         decoded+=pow(16, len-i-1)*(HEX.find(hex[i]));
     }
     return decoded;
+}
+
+//Function to convert a single length hex character to an integer.
+int decode_char(char hex){
+    return HEX.find(hex);
+}
+
+//Function to decode a given register.
+int decode_reg(char index){
+    return decode(registers[decode_char(index)], 2);
 }
 
 //Function to convert nnn to integer address
@@ -81,6 +98,8 @@ void execute(int* pc, byte nib1, byte nib2){
                 break;
             
             default:
+                std::cout<< "Unrecognized opcode \"" <<nib1 <<nib2<<"\"! Now exiting...\n";
+                exit;
                 break;
             }
             break;
@@ -105,7 +124,7 @@ void execute(int* pc, byte nib1, byte nib2){
 
     case '3'://3xkk - Skip next instruction if Vx==kk
         {
-            if (registers[decode(std::string{nib1[1]}, 4)] == nib2)
+            if (registers[decode_char(nib1[1])] == nib2)
             {
                 *pc+=2;
             }
@@ -114,7 +133,7 @@ void execute(int* pc, byte nib1, byte nib2){
     
     case '4'://4xkk - Skip next instruction if Vx!=kk
         {
-            if (registers[decode(std::string{nib1[0]}, 4)] != nib2)
+            if (registers[decode_char(nib1[0])] != nib2)
             {
                 *pc+=2;
             }
@@ -123,14 +142,136 @@ void execute(int* pc, byte nib1, byte nib2){
         break;
 
     case '5'://5xy0 - Skip next instruction if Vx==Vy
-        if (nib2[1]=='0')
         {
-            if (decode(std::string{nib1[1]}, 1) == decode(std::string{nib2[0]}, 1))
+            if (nib2[1]=='0')
             {
-                *pc+=2;
+                //NOTE - Can increase performance (basically by a nanosec lol) by removing call to
+                //       decode_reg and instead comparing the 2 strings stored in the registers
+                //       (using decode_char to get index)
+                if (decode_reg(nib1[1]) == decode_reg(nib2[0]))
+                {
+                    *pc+=2;
+                }
             }
         }
         break;
+    
+    case '6'://6xkk - Loads Vx with kk
+        {
+            registers[decode_char(nib1[1])] = nib2;
+        }
+        break;
+
+    case '7'://7xkk - Vx += kk
+        {
+            encode((decode_reg(nib1[1]) + decode(nib2, 2)), &registers[decode_char(nib1[1])]);
+        }
+        break;
+    
+    case '8':
+        switch (nib2[1])
+        {
+        case '0'://8xy0 - Set Vx = Vy
+            {
+                registers[decode_char(nib1[1])] = registers[decode_char(nib2[0])];
+            }
+            break;
+        
+        case '1'://8xy1 - Vx = Vy OR Vx (bitwise OR)
+            {
+                encode(decode_reg(nib2[0]) | decode_reg(nib1[1]),  &registers[decode_char(nib1[1])]);
+            }
+            break;
+
+        case '2'://8xy2 - Vx = Vx AND Vy
+            {
+                encode(decode_reg(nib2[0]) & decode_reg(nib1[1]),  &registers[decode_char(nib1[1])]);
+            }
+            break;
+
+        case '3'://8xy3 - Vx = Vx XOR Vy
+            {
+                encode(decode_reg(nib2[0]) ^ decode_reg(nib1[1]),  &registers[decode_char(nib1[1])]);
+            }
+            break;
+        
+        case '4'://8xy4 - Vx = (Vx + Vy) mod 256 and Vf = 1 if Vx+Vy<=255, else 0
+            {
+                if (decode_reg(nib2[0]) + decode_reg(nib1[1]) > 255)
+                {
+                    //Could have just used 15 as the index, but this makes it more clear what the index is.
+                    registers[decode_char('f')] = "00";
+                }
+                else
+                {
+                    registers[decode_char('f')]="01";
+                }
+                encode((decode_reg(nib2[0]) + decode_reg(nib1[1]))%256,  &registers[decode_char(nib1[1])]);
+            }
+            break;
+
+        case '5'://8xy5 - Vx = mod(Vx-Vy) and Vf = 1 if Vx>Vy, else 0
+            {
+                if (decode_reg(nib2[0]) - decode_reg(nib1[1]) < 0)
+                {
+                    registers[decode_char('f')]="01";
+                }
+                else
+                {
+                    registers[decode_char('f')]="00";
+                }
+                encode(abs(decode_reg(nib2[0]) - decode_reg(nib1[1])),  &registers[decode_char(nib1[1])]);
+            }
+            break;
+
+        case '6'://8xy6 - Vx = Vx/2 and Vf=1 if LSB of Vx=1, else 0
+            {
+                if (decode_reg(nib1[1]) % 2 == 1)
+                {
+                    registers[decode_char('f')] = "01";
+                }
+                else
+                {
+                    registers[decode_char('f')] = "00";
+                }
+                
+                encode(decode_reg(nib1[1])/2,  &registers[decode_char(nib1[1])]);
+            }
+            break;
+
+        case '7'://8xy7 - Vx = mod(Vx-Vy) and Vf = 1 if Vy>Vx, else 0
+            {
+                if (decode_reg(nib2[0]) > decode_reg(nib1[1]))
+                {
+                    registers[decode_char('f')] = "01";
+                }
+                else
+                {
+                    registers[decode_char('f')] = "00";
+                }
+                encode(abs(decode_reg(nib1[1]) - decode_reg(nib2[0])), &registers[decode_char(nib1[1])]);
+            }
+            break;
+        
+        case 'e'://8xyE - Vx = Vx*2 and Vf = 1 if MSB of Vx = 1, else 0
+            {
+                if (decode_reg(nib1[1]) >= 128)
+                {
+                    registers[decode_char('f')] = "01";
+                }
+                else
+                {
+                    registers[decode_char('f')] = "00";
+                }
+                encode((decode_reg(nib1[1])*2)%256, &registers[decode_char(nib1[1])]);
+            }
+            break;
+
+        default:
+            break;
+        }
+        break;
+        
     default:
         break;
     }
