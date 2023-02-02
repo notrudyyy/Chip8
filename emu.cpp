@@ -26,7 +26,7 @@ typedef byte* bytes;
 const int RAM_SIZE = 3583;
 const std::string HEX = "0123456789abcdef";
 std::stack<int> stack;
-byte registers[15];
+byte registers[16];
 
 //Function to convert the 8 bit binary input from file to a 2 character string.
 void sanitize(uchar input, bytes ram, int index){
@@ -343,9 +343,9 @@ int main()
     std::ifstream data{rom, std::ios::binary};
 
     //We use unsigned char to store each byte of info, i.e., 2 hex values
-    uchar input;
+    uchar input{};
 
-    byte ram[RAM_SIZE];
+    static byte ram[RAM_SIZE];
     
     int count=0;
     for (int i = 0; data.get((char&)input); i++)
