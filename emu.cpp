@@ -361,12 +361,14 @@ void execute(int* pc, byte nib1, byte nib2){
         break;
 
     case 'c'://cxkk - Set Vx = Random byte AND kk
-        //Some code to generate random number, see https://stackoverflow.com/questions/7560114/random-number-c-in-some-range
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<> distr(0, 255);
+        {
+            //Some code to generate random number, see https://stackoverflow.com/questions/7560114/random-number-c-in-some-range
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<> distr(0, 255);
 
-        encode(distr(gen) & decoded(nib2, 2) , &registers[decode_char(nib1[1])]);
+            encode(distr(gen) & decoded(nib2, 2), &registers[decode_char(nib1[1])]);
+        }
         break;
 
     default:
