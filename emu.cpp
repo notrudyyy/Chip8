@@ -329,7 +329,25 @@ void execute(int* pc, byte nib1, byte nib2){
             break;
         }
         break;
-        
+       
+    case '9': //9xy0 - Skip next if Vx != Vy
+        {
+            if (nib2[1] == '0')
+            {
+                if (decode_reg(x) != decode_reg(y))
+                {
+                    *pc += 2;
+                }
+            }
+            else
+            {
+                unknown_op(nib1, nib2);
+            }
+        }
+        break;
+
+    case 'A':
+
     default:
         unknown_op(nib1, nib2);
         break;
