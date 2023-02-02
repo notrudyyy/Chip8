@@ -5,6 +5,7 @@
 #include<string.h>
 #include<math.h>
 #include<stack>
+#include<random>
 
 //General Outline
 //Read from hex file - parse, store into RAM (do i need to use malloc here? or should i just write to drive)
@@ -27,6 +28,7 @@ const int RAM_SIZE = 3583;
 const std::string HEX = "0123456789abcdef";
 std::stack<int> stack;
 byte registers[16];
+std::string reg_i{}; //register i
 
 //Function to convert the 8 bit binary input from file to a 2 character string.
 void sanitize(uchar input, bytes ram, int index){
@@ -346,7 +348,26 @@ void execute(int* pc, byte nib1, byte nib2){
         }
         break;
 
-    case 'A':
+    case 'a'://Annn - Set I = nnn
+        {
+            i = "0" + nib1[1] + nib2;
+        }
+        break;
+    
+    case 'b'://bnnn - Jump to nnn + V0
+        {
+            *pc = decode_reg('0') + decode(nib1[1] + nib2, 3);
+        }
+        break;
+
+    case 'c'://cxkk - Set Vx = Random byte AND kk
+        //Some code to generate random number, see https://stackoverflow.com/questions/7560114/random-number-c-in-some-range
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<> distr(0, 255);
+
+        encode(distr(gen) & decoded(nib2, 2) , &registers[decode_char(nib1[1])]);
+        break;
 
     default:
         unknown_op(nib1, nib2);
@@ -375,6 +396,7 @@ int main()
     }
 
     int pc = 0; //program counter
+
     while (1)
     {
         byte nib1 = ram[pc++];
