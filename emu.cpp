@@ -40,6 +40,7 @@ std::stack<int> stack;
 
 //Register array and register i
 byte registers[16];
+
 std::string reg_i{ "0000" }; //2 bytes
 
 //Array containing state of display
@@ -479,7 +480,7 @@ void execute(int* pc, byte nib1, byte nib2) {
             break;
         }
         break;
-
+        
     case '9': //9xy0 - Skip next if Vx != Vy
     {
         if (nib2[1] == '0')
