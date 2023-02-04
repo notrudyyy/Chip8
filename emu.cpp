@@ -56,10 +56,11 @@ void sanitize(uchar input, bytes ram, int index) {
 }
 
 //Function to convert integer to 2 length hex string.
-void encode(int num, std::string* hex) {
-    *hex = "00";
+std::string encode(int num) {
+    std::string hex = "00";
     hex[0] = HEX[num / 16];
     hex[1] = HEX[num % 16];
+    return hex;
 }
 
 //Function to convert n length hex string to integer.
@@ -104,15 +105,16 @@ void unknown_op(byte nib1, byte nib2) {
 }
 
 //Function to convert hex char to 4 bit string
-std::string hex_2_bin(std::string bin, char hex) {
+std::string hex_2_bin(char hex) {
+    std::string bin{ "0000" };
     int decoded = decode_char(hex);
-    bin[3] = decoded % 2;
+    bin[3] = decoded % 2 + 48; //Adding 48 to convert it to 0/1 in ASCII
     decoded /= 2;
-    bin[2] = decoded % 2;
+    bin[2] = decoded % 2 + 48;
     decoded /= 2;
-    bin[1] = decoded % 2;
+    bin[1] = decoded % 2 + 48;
     decoded /= 2;
-    bin[0] = decoded % 2;
+    bin[0] = decoded % 2 + 48;
     return bin;
 }
 
@@ -253,6 +255,7 @@ void debug_print(byte nib1, byte nib2, int pc, int verbosity) {
         {
             std::cout << "REGISTERS\n\n";
             std::cout << "Program Counter - \"" << pc << "\"\n";
+            std::cout << "Register I - \"" << reg_i << "\"\n";
             for (int i = 0; i < 16; i++)
             {
                 std::cout << "V" << HEX[i] << " - \"" << registers[i] << "\"\n";
@@ -363,7 +366,7 @@ void execute(int* pc, byte nib1, byte nib2) {
     case '7'://7xkk - Vx += kk
     {
         flag_warn(nib1, nib2, nib1[1]);
-        encode((decode_reg(nib1[1]) + decode(nib2, 2)), &registers[decode_char(nib1[1])]);
+        registers[decode_char(nib1[1])] = encode((decode_reg(nib1[1]) + decode(nib2, 2)));
     }
     break;
 
@@ -380,21 +383,21 @@ void execute(int* pc, byte nib1, byte nib2) {
         case '1'://8xy1 - Vx = Vy OR Vx (bitwise OR)
         {
             flag_warn(nib1, nib2, nib1[1]);
-            encode(decode_reg(nib2[0]) | decode_reg(nib1[1]), &registers[decode_char(nib1[1])]);
+            registers[decode_char(nib1[1])] = encode(decode_reg(nib2[0]) | decode_reg(nib1[1]));
         }
         break;
 
         case '2'://8xy2 - Vx = Vx AND Vy
         {
             flag_warn(nib1, nib2, nib1[1]);
-            encode(decode_reg(nib2[0]) & decode_reg(nib1[1]), &registers[decode_char(nib1[1])]);
+            registers[decode_char(nib1[1])] = encode(decode_reg(nib2[0]) & decode_reg(nib1[1]));
         }
         break;
 
         case '3'://8xy3 - Vx = Vx XOR Vy
         {
             flag_warn(nib1, nib2, nib1[1]);
-            encode(decode_reg(nib2[0]) ^ decode_reg(nib1[1]), &registers[decode_char(nib1[1])]);
+            registers[decode_char(nib1[1])] = encode(decode_reg(nib2[0]) ^ decode_reg(nib1[1]));
         }
         break;
 
@@ -410,7 +413,7 @@ void execute(int* pc, byte nib1, byte nib2) {
             {
                 registers[decode_char('f')] = "01";
             }
-            encode((decode_reg(nib2[0]) + decode_reg(nib1[1])) % 256, &registers[decode_char(nib1[1])]);
+            registers[decode_char(nib1[1])] = encode((decode_reg(nib2[0]) + decode_reg(nib1[1])) % 256);
         }
         break;
 
@@ -425,7 +428,7 @@ void execute(int* pc, byte nib1, byte nib2) {
             {
                 registers[decode_char('f')] = "00";
             }
-            encode(abs(decode_reg(nib2[0]) - decode_reg(nib1[1])), &registers[decode_char(nib1[1])]);
+            registers[decode_char(nib1[1])] = encode(abs(decode_reg(nib2[0]) - decode_reg(nib1[1])));
         }
         break;
 
@@ -441,7 +444,7 @@ void execute(int* pc, byte nib1, byte nib2) {
                 registers[decode_char('f')] = "00";
             }
 
-            encode(decode_reg(nib1[1]) / 2, &registers[decode_char(nib1[1])]);
+            registers[decode_char(nib1[1])] = encode(decode_reg(nib1[1]) / 2);
         }
         break;
 
@@ -456,7 +459,7 @@ void execute(int* pc, byte nib1, byte nib2) {
             {
                 registers[decode_char('f')] = "00";
             }
-            encode(abs(decode_reg(nib1[1]) - decode_reg(nib2[0])), &registers[decode_char(nib1[1])]);
+            registers[decode_char(nib1[1])] = encode(abs(decode_reg(nib1[1]) - decode_reg(nib2[0])));
         }
         break;
 
@@ -471,7 +474,7 @@ void execute(int* pc, byte nib1, byte nib2) {
             {
                 registers[decode_char('f')] = "00";
             }
-            encode((decode_reg(nib1[1]) * 2) % 256, &registers[decode_char(nib1[1])]);
+            registers[decode_char(nib1[1])] = encode((decode_reg(nib1[1]) * 2) % 256);
         }
         break;
 
@@ -499,7 +502,10 @@ void execute(int* pc, byte nib1, byte nib2) {
 
     case 'a'://Annn - Set I = nnn
     {
-        reg_i = "0" + nib1[1] + nib2;
+        reg_i[0] = '0';
+        reg_i[1] = nib1[1];
+        reg_i[2] = nib2[0];
+        reg_i[3] = nib2[1];
     }
     break;
 
@@ -516,7 +522,7 @@ void execute(int* pc, byte nib1, byte nib2) {
         std::mt19937 gen(rd());
         std::uniform_int_distribution<> distr(0, 255);
 
-        encode(distr(gen) & decode(nib2, 2), &registers[decode_char(nib1[1])]);
+        registers[decode_char(nib1[1])] = encode(distr(gen) & decode(nib2, 2));
     }
     break;
 
@@ -532,10 +538,10 @@ void execute(int* pc, byte nib1, byte nib2) {
 
         for (int i = ram_start; i < ram_start + no_of_bytes; i++)
         {
-            std::string bin = hex_2_bin("0000", ram[i][0]) + hex_2_bin("0000", ram[i][1]);
+            std::string bin = hex_2_bin(ram[i][0]) + hex_2_bin(ram[i][1]);
 
             for (int j = 0; j < 8; j++) {
-                display[row][(col + j) % 64] = display[row][(col + j) % 64] ^ (int)bin[j];
+                display[row][(col + j) % 64] = display[row][(col + j) % 64] ^ ((int)bin[j] - 48);
             }
 
             row = (row + 1) % 32;
@@ -567,6 +573,7 @@ int main()
         count++;
     }
 
+    data.close();
 
     //We set currently unused memory to 00
     for (int i = 0; i < PROG_START; i++)
@@ -582,7 +589,7 @@ int main()
     //We now load in the sprites for the Chip-8 font
     load_font(ram);
 
-    int pc = 0; //program counter
+    int pc = PROG_START; //program counter initialized to start of ROM
 
     while (1)
     {
@@ -590,4 +597,18 @@ int main()
         byte nib2 = ram[pc++];
         execute(&pc, nib1, nib2);
     }
+
+    //Some code to write out display to a text file for viewing
+    // std::string output = "out.txt";
+    // // std::ofstream out{output};
+    // // std::cout << "\x1B[2J\x1B[H";
+    // for (int i = 0; i < 32; i++)
+    // {
+    //     for (int j = 0; j < 64; j++)
+    //     {
+    //         out << display[i][j] << " ";
+    //     }
+    //     out << '\n';
+    // }
+    // out.close();
 }
