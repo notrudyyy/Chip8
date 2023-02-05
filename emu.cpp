@@ -6,6 +6,7 @@
 #include<math.h>
 #include<stack>
 #include<random>
+#include<chrono>
 
 //General Outline
 //Read from hex file - parse, store into RAM (do i need to use malloc here? or should i just write to drive)
@@ -43,6 +44,13 @@ byte registers[16];
 
 std::string reg_i{ "0000" }; //2 bytes
 
+//Sound and delay timer
+std::string delay_val{ "00" };
+std::chrono::high_resolution_clock::time_point delay_time{};
+
+std::string sound_val{ "00" };
+std::chrono::high_resolution_clock::time_point sound_time{};
+
 //Array containing state of display
 //Display starts at (0,0) and ends at (31, 63)
 int display[32][64] = {};
@@ -55,11 +63,13 @@ void sanitize(uchar input, bytes ram, int index) {
     ram[index][1] = HEX[inp % 16];
 }
 
-//Function to convert integer to 2 length hex string.
-std::string encode(int num) {
-    std::string hex = "00";
-    hex[0] = HEX[num / 16];
-    hex[1] = HEX[num % 16];
+//Function to convert integer to n length hex string.
+std::string encode(int num, int len) {
+    std::string hex{};
+    for (int i = 0; i < len; i++) {
+        hex.insert(0, std::string{ HEX[num % 16] });
+        num /= 16;
+    }
     return hex;
 }
 
@@ -116,6 +126,24 @@ std::string hex_2_bin(char hex) {
     decoded /= 2;
     bin[0] = decoded % 2 + 48;
     return bin;
+}
+
+//Function to find current value of delay_val
+int get_delay_val() {
+    std::chrono::high_resolution_clock::time_point curr_time = std::chrono::steady_clock::now();
+    
+    double time_diff = std::chrono::duration<double, std::nano>(curr_time - delay_time).count();
+
+    if (decode(delay_val, 2) - (int)floor(60 * time_diff) < 0)
+    {
+        delay_val = "00";
+        return 0;
+    }
+    else
+    {
+        delay_val = encode(decode(delay_val, 2) - (int)floor(60 * time_diff), 2);
+        return (decode(delay_val, 2) - (int)floor(60 * time_diff));
+    }
 }
 
 //Function to load font sprite data into RAM
@@ -304,7 +332,7 @@ void execute(int* pc, byte nib1, byte nib2) {
             }
             break;
 
-        default: //0nnn - We ignore thisb keeping default blank.
+        default: //0nnn - We ignore this by keeping default blank.
             break;
         }
         break;
@@ -366,7 +394,7 @@ void execute(int* pc, byte nib1, byte nib2) {
     case '7'://7xkk - Vx += kk
     {
         flag_warn(nib1, nib2, nib1[1]);
-        registers[decode_char(nib1[1])] = encode((decode_reg(nib1[1]) + decode(nib2, 2)));
+        registers[decode_char(nib1[1])] = encode((decode_reg(nib1[1]) + decode(nib2, 2)), 2);
     }
     break;
 
@@ -374,109 +402,109 @@ void execute(int* pc, byte nib1, byte nib2) {
         switch (nib2[1])
         {
         case '0'://8xy0 - Set Vx = Vy
-        {
-            flag_warn(nib1, nib2, nib1[1]);
-            registers[decode_char(nib1[1])] = registers[decode_char(nib2[0])];
-        }
-        break;
+            {
+                flag_warn(nib1, nib2, nib1[1]);
+                registers[decode_char(nib1[1])] = registers[decode_char(nib2[0])];
+            }
+            break;
 
         case '1'://8xy1 - Vx = Vy OR Vx (bitwise OR)
-        {
-            flag_warn(nib1, nib2, nib1[1]);
-            registers[decode_char(nib1[1])] = encode(decode_reg(nib2[0]) | decode_reg(nib1[1]));
-        }
-        break;
+            {
+                flag_warn(nib1, nib2, nib1[1]);
+                registers[decode_char(nib1[1])] = encode(decode_reg(nib2[0]) | decode_reg(nib1[1]), 2);
+            }
+            break;
 
         case '2'://8xy2 - Vx = Vx AND Vy
-        {
-            flag_warn(nib1, nib2, nib1[1]);
-            registers[decode_char(nib1[1])] = encode(decode_reg(nib2[0]) & decode_reg(nib1[1]));
-        }
-        break;
+            {
+                flag_warn(nib1, nib2, nib1[1]);
+                registers[decode_char(nib1[1])] = encode(decode_reg(nib2[0]) & decode_reg(nib1[1]), 2);
+            }
+            break;
 
         case '3'://8xy3 - Vx = Vx XOR Vy
-        {
-            flag_warn(nib1, nib2, nib1[1]);
-            registers[decode_char(nib1[1])] = encode(decode_reg(nib2[0]) ^ decode_reg(nib1[1]));
-        }
-        break;
+            {
+                flag_warn(nib1, nib2, nib1[1]);
+                registers[decode_char(nib1[1])] = encode(decode_reg(nib2[0]) ^ decode_reg(nib1[1]), 2);
+            }
+            break;
 
         case '4'://8xy4 - Vx = (Vx + Vy) mod 256 and Vf = 1 if Vx+Vy<=255, else 0
-        {
-            flag_warn(nib1, nib2, nib1[1]);
-            if (decode_reg(nib2[0]) + decode_reg(nib1[1]) > 255)
             {
-                //Could have just used 15 as the index, but this makes it more clear what the index is.
-                registers[decode_char('f')] = "00";
+                flag_warn(nib1, nib2, nib1[1]);
+                if (decode_reg(nib2[0]) + decode_reg(nib1[1]) > 255)
+                {
+                    //Could have just used 15 as the index, but this makes it more clear what the index is.
+                    registers[decode_char('f')] = "00";
+                }
+                else
+                {
+                    registers[decode_char('f')] = "01";
+                }
+                registers[decode_char(nib1[1])] = encode((decode_reg(nib2[0]) + decode_reg(nib1[1])) % 256, 2);
             }
-            else
-            {
-                registers[decode_char('f')] = "01";
-            }
-            registers[decode_char(nib1[1])] = encode((decode_reg(nib2[0]) + decode_reg(nib1[1])) % 256);
-        }
         break;
 
         case '5'://8xy5 - Vx = mod(Vx-Vy) and Vf = 1 if Vx>Vy, else 0
-        {
-            flag_warn(nib1, nib2, nib1[1]);
-            if (decode_reg(nib2[0]) - decode_reg(nib1[1]) < 0)
             {
-                registers[decode_char('f')] = "01";
+                flag_warn(nib1, nib2, nib1[1]);
+                if (decode_reg(nib2[0]) - decode_reg(nib1[1]) < 0)
+                {
+                    registers[decode_char('f')] = "01";
+                }
+                else
+                {
+                    registers[decode_char('f')] = "00";
+                }
+                registers[decode_char(nib1[1])] = encode(abs(decode_reg(nib2[0]) - decode_reg(nib1[1])), 2);
             }
-            else
-            {
-                registers[decode_char('f')] = "00";
-            }
-            registers[decode_char(nib1[1])] = encode(abs(decode_reg(nib2[0]) - decode_reg(nib1[1])));
-        }
-        break;
+            break;
 
         case '6'://8xy6 - Vx = Vx/2 and Vf=1 if LSB of Vx=1, else 0
-        {
-            flag_warn(nib1, nib2, nib1[1]);
-            if (decode_reg(nib1[1]) % 2 == 1)
             {
-                registers[decode_char('f')] = "01";
-            }
-            else
-            {
-                registers[decode_char('f')] = "00";
-            }
+                flag_warn(nib1, nib2, nib1[1]);
+                if (decode_reg(nib1[1]) % 2 == 1)
+                {
+                    registers[decode_char('f')] = "01";
+                }
+                else
+                {
+                    registers[decode_char('f')] = "00";
+                }
 
-            registers[decode_char(nib1[1])] = encode(decode_reg(nib1[1]) / 2);
-        }
-        break;
+                registers[decode_char(nib1[1])] = encode(decode_reg(nib1[1]) / 2, 2);
+            }
+            break;
 
         case '7'://8xy7 - Vx = mod(Vx-Vy) and Vf = 1 if Vy>Vx, else 0
-        {
-            flag_warn(nib1, nib2, nib1[1]);
-            if (decode_reg(nib2[0]) > decode_reg(nib1[1]))
             {
-                registers[decode_char('f')] = "01";
+                flag_warn(nib1, nib2, nib1[1]);
+                if (decode_reg(nib2[0]) > decode_reg(nib1[1]))
+                {
+                    registers[decode_char('f')] = "01";
+                }
+                else
+                {
+                    registers[decode_char('f')] = "00";
+                }
+                registers[decode_char(nib1[1])] = encode(abs(decode_reg(nib1[1]) - decode_reg(nib2[0])), 2);
             }
-            else
-            {
-                registers[decode_char('f')] = "00";
-            }
-            registers[decode_char(nib1[1])] = encode(abs(decode_reg(nib1[1]) - decode_reg(nib2[0])));
-        }
-        break;
+            break;
 
         case 'e'://8xyE - Vx = Vx*2 and Vf = 1 if MSB of Vx = 1, else 0
-        {
-            flag_warn(nib1, nib2, nib1[1]);
-            if (decode_reg(nib1[1]) >= 128)
             {
-                registers[decode_char('f')] = "01";
+                flag_warn(nib1, nib2, nib1[1]);
+                if (decode_reg(nib1[1]) >= 128)
+                {
+                    registers[decode_char('f')] = "01";
+                }
+                else
+                {
+                    registers[decode_char('f')] = "00";
+                }
+                registers[decode_char(nib1[1])] = encode((decode_reg(nib1[1]) * 2) % 256, 2);
             }
-            else
-            {
-                registers[decode_char('f')] = "00";
-            }
-            registers[decode_char(nib1[1])] = encode((decode_reg(nib1[1]) * 2) % 256);
-        }
-        break;
+            break;
 
         default:
             unknown_op(nib1, nib2);
@@ -517,12 +545,13 @@ void execute(int* pc, byte nib1, byte nib2) {
 
     case 'c'://cxkk - Set Vx = Random byte AND kk
     {
+        flag_warn(nib1, nib2, nib1[1]);
         //Some code to generate random number, see https://stackoverflow.com/questions/7560114/random-number-c-in-some-range
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_int_distribution<> distr(0, 255);
 
-        registers[decode_char(nib1[1])] = encode(distr(gen) & decode(nib2, 2));
+        registers[decode_char(nib1[1])] = encode(distr(gen) & decode(nib2, 2), 2);
     }
     break;
 
@@ -548,6 +577,77 @@ void execute(int* pc, byte nib1, byte nib2) {
         }
     }
     break;
+
+    case 'e':
+        break;
+
+    case 'f':
+        {
+            if (nib2 == "07") //fx07 - Load Vx with value of delay timer
+            {
+                flag_warn(nib1, nib2, nib1[1]);
+                registers[decode_char(nib1[1])] = encode(get_delay_val(), 2);
+            }
+
+            else if (nib2 == "0a") //fx0a - Wait for key press, store that value in Vx
+            {
+            }
+
+            else if (nib2 == "15") //fx15 - Load delay timer with value of Vx
+            {
+                delay_val = registers[decode_char(nib1[1])];
+                delay_time = std::chrono::steady_clock::now();
+            }
+
+            else if (nib2 == "18") //fx18 - Load sound timer with value of Vx
+            {
+                sound_val = registers[decode_char(nib1[1])];
+                sound_time = std::chrono::steady_clock::now();
+            }
+
+            else if (nib2 == "1e") //fx1e - I += Vx
+            {
+                reg_i = encode(decode(reg_i, 4) + decode_reg(nib1[1]), 4);
+            }
+
+            else if (nib2 == "29") //fx29 - Set I with the location of the sprite data of digit stored in Vx
+            {
+                reg_i = encode(5 * decode_reg(nib1[1]), 4); //we multiply by 5 because of how the fonts are stored.
+            }
+
+            else if (nib2 == "33") //fx33 - Store BCD representation of Vx in address at I, I+1, I+2
+                //hundreds digit at I, tens at I+1, ones at I+2
+            {
+                int dec = decode_reg(nib1[1]);
+                int hund = dec / 100;
+                int tens = (dec % 100) / 10;
+                int ones = dec % 10;
+                int address = decode(reg_i, 4);
+                ram[address] = hund;
+                ram[address + 1] = tens;
+                ram[address + 2] = ones;
+            }
+
+            else if (nib2 == "55") //fx55 - Store all the registers V0 to Vx in memory addresses starting at I
+            {
+                int address = decode(reg_i, 4);
+                for (int i = 0; i <= decode_char(nib1[1]); i++)
+                {
+                    ram[address + i] = registers[i];
+                }
+            }
+
+            else if (nib2 == "65") //fx65 - Reads memory starting from I into V0 to Vx
+            {
+                flag_warn(nib1, nib2, nib1[1]);
+                int address = decode(reg_i, 4);
+                for (int i = 0; i <= decode_char(nib1[1]); i++)
+                {
+                    registers[i] = ram[address + i];
+                }
+            }
+        }
+        break;
 
     default:
         unknown_op(nib1, nib2);
