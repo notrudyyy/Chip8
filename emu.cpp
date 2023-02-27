@@ -130,7 +130,7 @@ std::string hex_2_bin(char hex) {
 
 //Function to find current value of delay_val
 int get_delay_val() {
-    std::chrono::high_resolution_clock::time_point curr_time = std::chrono::steady_clock::now();
+    std::chrono::high_resolution_clock::time_point curr_time = std::chrono::high_resolution_clock::now();
     
     double time_diff = std::chrono::duration<double, std::nano>(curr_time - delay_time).count();
 
@@ -316,7 +316,7 @@ void execute(int* pc, byte nib1, byte nib2) {
                     }
                     break;
 
-                case 'E': //00EE - RET -return from subroutine
+                case 'e': //00EE - RET -return from subroutine
                     *pc = stack.top();
                     stack.pop();
                     break;
@@ -361,7 +361,7 @@ void execute(int* pc, byte nib1, byte nib2) {
 
     case '4'://4xkk - Skip next instruction if Vx!=kk
     {
-        if (registers[decode_char(nib1[0])] != nib2)
+        if (registers[decode_char(nib1[1])] != nib2)
         {
             *pc += 2;
         }
@@ -394,7 +394,7 @@ void execute(int* pc, byte nib1, byte nib2) {
     case '7'://7xkk - Vx += kk
     {
         flag_warn(nib1, nib2, nib1[1]);
-        registers[decode_char(nib1[1])] = encode((decode_reg(nib1[1]) + decode(nib2, 2)), 2);
+        registers[decode_char(nib1[1])] = encode((decode_reg(nib1[1]) + decode(nib2, 2)) % 256, 2);
     }
     break;
 
@@ -432,77 +432,45 @@ void execute(int* pc, byte nib1, byte nib2) {
         case '4'://8xy4 - Vx = (Vx + Vy) mod 256 and Vf = 1 if Vx+Vy<=255, else 0
             {
                 flag_warn(nib1, nib2, nib1[1]);
-                if (decode_reg(nib2[0]) + decode_reg(nib1[1]) > 255)
-                {
-                    //Could have just used 15 as the index, but this makes it more clear what the index is.
-                    registers[decode_char('f')] = "00";
-                }
-                else
-                {
-                    registers[decode_char('f')] = "01";
-                }
+                int carry = decode_reg(nib2[0]) + decode_reg(nib1[1]) > 255;
                 registers[decode_char(nib1[1])] = encode((decode_reg(nib2[0]) + decode_reg(nib1[1])) % 256, 2);
+                registers[decode_char('f')] = encode(carry, 2);
             }
-        break;
+            break;
 
-        case '5'://8xy5 - Vx = mod(Vx-Vy) and Vf = 1 if Vx>Vy, else 0
+        case '5'://8xy5 - Vx = Vx-Vy and Vf = 1 if Vx>Vy, else 0
             {
                 flag_warn(nib1, nib2, nib1[1]);
-                if (decode_reg(nib2[0]) - decode_reg(nib1[1]) < 0)
-                {
-                    registers[decode_char('f')] = "01";
-                }
-                else
-                {
-                    registers[decode_char('f')] = "00";
-                }
-                registers[decode_char(nib1[1])] = encode(abs(decode_reg(nib2[0]) - decode_reg(nib1[1])), 2);
+                int borrow = decode_reg(nib2[0]) <= decode_reg(nib1[1]);
+                registers[decode_char(nib1[1])] = encode((decode_reg(nib1[1]) + decode("ff", 2) - decode_reg(nib2[0]) + 1) % 256, 2);
+                registers[decode_char('f')] = encode(borrow, 2);
             }
             break;
 
         case '6'://8xy6 - Vx = Vx/2 and Vf=1 if LSB of Vx=1, else 0
             {
                 flag_warn(nib1, nib2, nib1[1]);
-                if (decode_reg(nib1[1]) % 2 == 1)
-                {
-                    registers[decode_char('f')] = "01";
-                }
-                else
-                {
-                    registers[decode_char('f')] = "00";
-                }
-
+                int lsb = decode_reg(nib1[1]) % 2;
                 registers[decode_char(nib1[1])] = encode(decode_reg(nib1[1]) / 2, 2);
+                registers[decode_char('f')] = encode(lsb, 2);
             }
             break;
 
         case '7'://8xy7 - Vx = mod(Vx-Vy) and Vf = 1 if Vy>Vx, else 0
             {
                 flag_warn(nib1, nib2, nib1[1]);
-                if (decode_reg(nib2[0]) > decode_reg(nib1[1]))
-                {
-                    registers[decode_char('f')] = "01";
-                }
-                else
-                {
-                    registers[decode_char('f')] = "00";
-                }
+                int borrow = decode_reg(nib2[0]) > decode_reg(nib1[1]);
                 registers[decode_char(nib1[1])] = encode(abs(decode_reg(nib1[1]) - decode_reg(nib2[0])), 2);
+                registers[decode_char('f')] = encode(borrow, 2);
             }
             break;
 
         case 'e'://8xyE - Vx = Vx*2 and Vf = 1 if MSB of Vx = 1, else 0
             {
                 flag_warn(nib1, nib2, nib1[1]);
-                if (decode_reg(nib1[1]) >= 128)
-                {
-                    registers[decode_char('f')] = "01";
-                }
-                else
-                {
-                    registers[decode_char('f')] = "00";
-                }
+                int msb = decode_reg(nib1[1]) >= 128;
                 registers[decode_char(nib1[1])] = encode((decode_reg(nib1[1]) * 2) % 256, 2);
+                registers[decode_char('f')] = encode(msb, 2);
             }
             break;
 
@@ -596,13 +564,13 @@ void execute(int* pc, byte nib1, byte nib2) {
             else if (nib2 == "15") //fx15 - Load delay timer with value of Vx
             {
                 delay_val = registers[decode_char(nib1[1])];
-                delay_time = std::chrono::steady_clock::now();
+                delay_time = std::chrono::high_resolution_clock::now();
             }
 
             else if (nib2 == "18") //fx18 - Load sound timer with value of Vx
             {
                 sound_val = registers[decode_char(nib1[1])];
-                sound_time = std::chrono::steady_clock::now();
+                sound_time = std::chrono::high_resolution_clock::now();
             }
 
             else if (nib2 == "1e") //fx1e - I += Vx
@@ -623,9 +591,9 @@ void execute(int* pc, byte nib1, byte nib2) {
                 int tens = (dec % 100) / 10;
                 int ones = dec % 10;
                 int address = decode(reg_i, 4);
-                ram[address] = hund;
-                ram[address + 1] = tens;
-                ram[address + 2] = ones;
+                ram[address] = encode(hund, 2);
+                ram[address + 1] = encode(tens, 2);
+                ram[address + 2] = encode(ones, 2);
             }
 
             else if (nib2 == "55") //fx55 - Store all the registers V0 to Vx in memory addresses starting at I
