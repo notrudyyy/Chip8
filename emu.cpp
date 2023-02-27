@@ -438,7 +438,7 @@ void execute(int* pc, byte nib1, byte nib2) {
             }
             break;
 
-        case '5'://8xy5 - Vx = Vx-Vy and Vf = 1 if Vx>Vy, else 0
+        case '5'://8xy5 - Vx = Vx-Vy and Vf = 1 if Vx>=Vy, else 0
             {
                 flag_warn(nib1, nib2, nib1[1]);
                 int borrow = decode_reg(nib2[0]) <= decode_reg(nib1[1]);
@@ -456,11 +456,11 @@ void execute(int* pc, byte nib1, byte nib2) {
             }
             break;
 
-        case '7'://8xy7 - Vx = mod(Vx-Vy) and Vf = 1 if Vy>Vx, else 0
+        case '7'://8xy7 - Vx = Vy-Vx and Vf = 1 if Vy>=Vx, else 0
             {
                 flag_warn(nib1, nib2, nib1[1]);
-                int borrow = decode_reg(nib2[0]) > decode_reg(nib1[1]);
-                registers[decode_char(nib1[1])] = encode(abs(decode_reg(nib1[1]) - decode_reg(nib2[0])), 2);
+                int borrow = decode_reg(nib2[0]) >= decode_reg(nib1[1]);
+                registers[decode_char(nib1[1])] = encode((decode_reg(nib2[0]) + decode("ff", 2) - decode_reg(nib1[1]) + 1) % 256, 2);
                 registers[decode_char('f')] = encode(borrow, 2);
             }
             break;
